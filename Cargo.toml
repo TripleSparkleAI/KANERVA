@@ -1,0 +1,16 @@
+[package]
+name = "kanerva"
+version = "0.1.0"
+edition = "2021"
+description = "KANERVA: a toolbox for Kanerva's sparse distributed memory (hard locations, reads, soft cut-off, keys, capacity theory, refusal, content-read predictors). Zero dependencies."
+readme = "README.md"
+publish = false
+
+[lib]
+name = "kanerva"
+path = "src/lib.rs"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3

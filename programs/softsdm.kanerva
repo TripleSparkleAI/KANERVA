@@ -1,0 +1,24 @@
+# Kanerva's sparse distributed memory with a soft cut-off: softness 0 is the classic hard edge, higher
+# softness blurs the edge of each hard location's Hamming ball.
+model :mind do
+  softsdm :hard, word-size: 256, hard-locations: 2000, activation-probability: 0.05, softness: 0
+  hard.write :cat
+  hard.write :dog
+  hard.write :note, "meet at the harbour at nine"
+  hard.write :owl
+
+  softsdm :soft, word-size: 256, hard-locations: 2000, activation-probability: 0.05, softness: 0.25, seed: 2
+  soft.write :cat
+  soft.write :dog
+  soft.write :note, "meet at the harbour at nine"
+  soft.write :owl
+end
+
+run :mind do
+  hard.read read-address: :cat, address-noise: 0.2, seed: 1     # fire, vote, feed back
+  hard.read read-address: :note, address-noise: 0.1, seed: 2    # the text comes back letter for letter
+  soft.read read-address: :cat, address-noise: 0.2, seed: 1     # the same with a blurred cut-off
+  soft.read read-address: :cat, address-noise: 0.2, seed: 1, mode: :settle   # data bits pull back on the hard locations
+  hard.read seed: 3                                             # pure noise: where does it go?
+  soft.attend read-address: :cat, address-noise: 0.2            # the attention limit
+end

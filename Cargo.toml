@@ -1,9 +1,17 @@
 [package]
 name = "kanerva"
 version = "0.1.0"
-edition = "2021"
-description = "KANERVA: a toolbox for Kanerva's sparse distributed memory (hard locations, reads, soft cut-off, keys, capacity theory, refusal, content-read predictors). Zero dependencies."
+edition = "2024"
+# the oldest Rust that builds every target (checked with `cargo +1.87 build --all-targets`, 2026-10-05)
+rust-version = "1.87"
+description = "KANERVA: a toolbox for Kanerva's sparse distributed memory (hard-locations, reads, soft cut-off, keys, capacity theory, refusal, content-read predictors). Zero dependencies."
 readme = "README.md"
+repository = "https://github.com/triplesparkle/KANERVA"
+keywords = ["sparse-distributed-memory", "kanerva", "associative-memory", "hyperdimensional"]
+categories = ["algorithms", "science"]
+# no licence is chosen yet: LICENSE.md says so, and grants nothing until the owner chooses one (RELEASE_CHECKLIST.md)
+license-file = "LICENSE.md"
+# not on crates.io: the repository is private and the licence is undecided
 publish = false
 
 [lib]
@@ -13,4 +21,9 @@ path = "src/lib.rs"
 [dependencies]
 
 [profile.release]
+opt-level = 3
+
+# `cargo test` without --release still runs optimised: the measured examples run seconds optimised and minutes
+# unoptimised (measured 2026-10-06: the example tests took 339 s at opt-level 0). Overflow checks stay on.
+[profile.test]
 opt-level = 3

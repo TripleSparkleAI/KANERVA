@@ -1,0 +1,8 @@
+n 256, M 10,000, the SNR activation-radius; each bit is +1 with probability q
+recall = the address read from 10% address-noise ends at overlap >= 0.95; 100 reads per cell
+
+   q  mean bias  expected distance |  10 words   30 words  100 words  300 words
+ 0.5       0.05              127.6 |       1.00       1.00       1.00       0.91
+ 0.6       0.20              122.6 |       1.00       1.00       0.93       0.00
+ 0.7       0.40              107.5 |       1.00       0.84       0.03       0.00
+ 0.8       0.60               81.9 |       0.77       0.00       0.00       0.00

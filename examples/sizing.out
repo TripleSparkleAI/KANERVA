@@ -1,0 +1,22 @@
+n 256, M 10,000; recall = the address read ends at overlap >= 0.95; 100 reads per cell
+TRACK = predicted recall (1 - predicted_failure_rate, 400 sampled reads)
+
+SNR radius (activation-radius 107):
+  10% address-noise; S-map capacity 523, TRACK capacity at recall 0.9 389
+     10 words: measured recall 1.00, TRACK 1.00
+     50 words: measured recall 1.00, TRACK 1.00
+    300 words: measured recall 0.97, TRACK 0.94
+  30% address-noise; S-map capacity 108, TRACK capacity at recall 0.9 4
+     10 words: measured recall 0.87, TRACK 0.81
+     50 words: measured recall 0.67, TRACK 0.65
+    300 words: measured recall 0.06, TRACK 0.04
+
+radius for 30% noise (activation-radius 109):
+  10% address-noise; S-map capacity 418, TRACK capacity at recall 0.9 300
+     10 words: measured recall 1.00, TRACK 1.00
+     50 words: measured recall 1.00, TRACK 1.00
+    300 words: measured recall 0.88, TRACK 0.92
+  30% address-noise; S-map capacity 135, TRACK capacity at recall 0.9 23
+     10 words: measured recall 0.94, TRACK 0.94
+     50 words: measured recall 0.71, TRACK 0.71
+    300 words: measured recall 0.01, TRACK 0.01

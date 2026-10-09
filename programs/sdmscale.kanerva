@@ -1,0 +1,14 @@
+# The byte-counter memory for many hard locations: names are written by `put`, random words by `fill`.
+model :big do
+  sdmscale :k, word-size: 256, hard-locations: 20000, activation-probability: 0.005, seed: 1
+  k.put :cat
+  k.put :dog
+  k.fill 50
+end
+
+run :big do
+  k.read read-address: :cat, address-noise: 0.2, seed: 1                        # Kanerva's read by address
+  k.read read-address: :dog, address-noise: 0.1, via: :pulls, seed: 2           # the read by content
+  k.read read-address: :cat, address-noise: 0.2, via: :pulls, wake: :top, seed: 3
+  k.read read-address: :zebra, address-noise: 0.1, seed: 4                      # never written
+end

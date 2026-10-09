@@ -1,0 +1,4 @@
+read :k from read-address :cat with 20% address-noise via addresses (3 iterated reads, 100 of 20000 hard locations activated, 100 holding bit-counters): -> :cat
+read :k from read-address :dog with 10% address-noise via pulls (2 iterated reads, 119 of 20000 hard locations activated, 119 holding bit-counters): -> :dog
+read :k from read-address :cat with 20% address-noise via pulls (2 iterated reads, 103 of 20000 hard locations activated, 103 holding bit-counters): -> :cat
+read :k from read-address :zebra with 10% address-noise via addresses (6 iterated reads, 92 of 20000 hard locations activated, 92 holding bit-counters): -> nothing clear (overlap with :zebra -0.05)

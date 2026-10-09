@@ -1,0 +1,9 @@
+memory: 50000 hard-locations, word-size 256 bits, activation-radius 107 (activates 0.513% of hard-locations)
+wrote 300 words; each write activated 258.4 hard-locations on average
+address read from a read-address with 20% address-noise: overlap 1.000 after 3 iterated-reads (267 hard-locations activated, fixed point true)
+top-k read (k = 256): overlap 1.000
+shuffled rows, same read-address: overlap -0.047
+S-map capacity at 20% address-noise: 738 words
+refusal threshold h = 95 bits; this answer travelled 40 bits: accept
+keyed note, right key: Some("under the mat"); wrong key: None
+soft memory (softness 0.25): overlap 1.000; fitted softmax inverse temperature 2.17

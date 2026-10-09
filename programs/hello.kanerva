@@ -1,0 +1,14 @@
+# The first KANERVA program. Write four words into a sparse distributed memory,
+# then read cat back from a copy with a fifth of its bits flipped.
+# README.md opens with the same lines in Rust.
+model :mind do
+  sdm :s, word-size: 256, hard-locations: 2000
+  s.write :cat
+  s.write :dog
+  s.write :owl
+  s.write :note, "meet at nine"
+end
+
+run :mind do
+  s.read read-address: :cat, address-noise: 0.2, seed: 1
+end

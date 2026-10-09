@@ -1,0 +1,5 @@
+blue heron  -> Some("under the mat")
+north gate  -> Some("meet at nine")
+tin box     -> Some("behind the clock")
+red heron   -> None
+a note is not encrypted: the key is a 64-bit FNV-1a hash and can be guessed offline

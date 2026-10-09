@@ -1,0 +1,5 @@
+300 words in 10000 hard-locations; content read uses the top k = 103 rows
+address-noise   address read   content read   (recalled of 30, overlap >= 0.95)
+       10%          18             30
+       20%           4             30
+       30%           0             30

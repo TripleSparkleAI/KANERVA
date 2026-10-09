@@ -2,6 +2,7 @@
 //! (counters held by the caller via `address::iterated_read`, and the byte store `store::Store`) give the
 //! same answer bit for bit; the theory predicts what the store does; and the negative controls fail.
 
+#![allow(clippy::needless_range_loop)]
 use kanerva::address::{iterated_read, Addresses};
 use kanerva::bits::{add_address_noise, overlap, random_pattern};
 use kanerva::refuse::{oracle_point, travel_threshold};

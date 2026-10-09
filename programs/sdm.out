@@ -1,0 +1,8 @@
+read :s from read-address :cat with 20% address-noise via addresses (2 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat
+read :s from read-address :note with 15% address-noise via addresses (2 iterated reads, 44 of 2000 hard locations activated): :note +1.00  :cat +0.09  :dog -0.08  -> :note
+  text: "meet at nine"
+read :s from read-address :owl with 40% address-noise via addresses (4 iterated reads, 60 of 2000 hard locations activated): :owl +1.00  :cat -0.09  :note +0.07  -> :owl
+read :s from pure noise via addresses (3 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat
+read :s from read-address :zebra with 0% address-noise via addresses (3 iterated reads, 55 of 2000 hard locations activated): :note +0.62  :cat +0.46  :owl +0.45  -> nothing clear (closest :note at +0.62)
+read :s from a key via addresses (2 iterated reads, 45 of 2000 hard locations activated): text "under the mat"
+read :s from a key via addresses (2 iterated reads, 49 of 2000 hard locations activated): nothing readable

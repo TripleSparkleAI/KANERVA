@@ -25,10 +25,32 @@ use crate::store::Store;
 use crate::theory::{ball, phi, phi_inv};
 
 /// Grid of the row-match distribution in half units (u = s / 2, s = x . z): values -H .. H-1.
+///
+/// ```
+/// use kanerva::track::{G, H};
+/// assert_eq!(G, 8192);
+/// assert_eq!(H, 4096);
+/// ```
 pub const G: usize = 8192;
+/// Half the grid: the grid's values run -H .. H-1.
+///
+/// ```
+/// assert_eq!(2 * kanerva::track::H as usize, kanerva::track::G);
+/// ```
 pub const H: i64 = (G / 2) as i64;
 
 /// In-place iterative radix-2 FFT (length a power of two). `inverse` uses the +i sign and does NOT divide.
+///
+/// ```
+/// use kanerva::track::fft;
+/// // a unit impulse transforms to all ones
+/// let (mut re, mut im) = (vec![1.0, 0.0, 0.0, 0.0], vec![0.0; 4]);
+/// fft(&mut re, &mut im, false);
+/// assert!(re.iter().all(|&x| (x - 1.0).abs() < 1e-12) && im.iter().all(|&x| x.abs() < 1e-12));
+/// // the inverse does not divide: dividing by the length gives the impulse back
+/// fft(&mut re, &mut im, true);
+/// assert!((re[0] / 4.0 - 1.0).abs() < 1e-12 && re[1..].iter().all(|&x| x.abs() < 1e-12));
+/// ```
 pub fn fft(re: &mut [f64], im: &mut [f64], inverse: bool) {
     let n = re.len();
     let mut j = 0usize;
@@ -96,12 +118,29 @@ fn compound_from_cf(fr: &[f64], fi: &[f64], lam: f64) -> Vec<f64> {
 
 /// The distribution of a sum of a Poisson(lam) number of terms, each drawn from `sev` ((u, weight) pairs,
 /// weights summing to 1): the match (in half units) of a row holding a Poisson number of stored patterns.
+///
+/// ```
+/// use kanerva::track::{compound_pmf, H};
+/// // every term is +1, so the sum is Poisson(2) itself
+/// let pmf = compound_pmf(&[(1, 1.0)], 2.0);
+/// assert!((pmf[H as usize] - (-2.0f64).exp()).abs() < 1e-12);
+/// assert!((pmf[H as usize + 1] - 2.0 * (-2.0f64).exp()).abs() < 1e-12);
+/// ```
 pub fn compound_pmf(sev: &[(i64, f64)], lam: f64) -> Vec<f64> {
     let (fr, fi) = severity_cf(sev);
     compound_from_cf(&fr, &fi, lam)
 }
 
 /// `compound_pmf` on a grid of `len` points (a power of two), values -len/2 .. len/2 - 1 (index u + len/2).
+///
+/// ```
+/// use kanerva::track::compound_pmf_len;
+/// // terms of -1 at rate 1 on a grid of 64: mass e^-1 at 0 and at -1, index u + 32
+/// let pmf = compound_pmf_len(&[(-1, 1.0)], 1.0, 64);
+/// assert!((pmf[32] - (-1.0f64).exp()).abs() < 1e-12);
+/// assert!((pmf[31] - (-1.0f64).exp()).abs() < 1e-12);
+/// assert!((pmf.iter().sum::<f64>() - 1.0).abs() < 1e-9);
+/// ```
 pub fn compound_pmf_len(sev: &[(i64, f64)], lam: f64, len: usize) -> Vec<f64> {
     let (mut re, mut im) = (vec![0.0; len], vec![0.0; len]);
     for &(u, w) in sev {
@@ -134,9 +173,13 @@ fn at_len(v: &[f64], u: i64, below: f64, half: i64) -> f64 {
 }
 
 /// TRACK-G's grid (half the TRACK-C grid; a shell's row match stays well inside +-2048 half units).
+///
+/// ```
+/// assert_eq!(kanerva::track::GG * 2, kanerva::track::G);
+/// ```
 pub const GG: usize = 4096;
 
-/// tail[i] = P[X > u] for u = i - H, from a pmf on the same grid.
+/// tail\[i\] = P\[X > u\] for u = i - H, from a pmf on the same grid.
 fn tail_of(pmf: &[f64]) -> Vec<f64> {
     let mut t = vec![0.0; pmf.len()];
     let mut acc = 0.0;
@@ -158,6 +201,17 @@ fn at(v: &[f64], u: i64, below: f64) -> f64 {
 }
 
 /// Which rows a content read wakes.
+///
+/// ```
+/// use kanerva::track::{Content, Wake};
+/// let c = Content::new(256, 20_000, 104);
+/// let u = vec![0i64; 50];
+/// // a threshold above any possible match wakes nothing; one far below wakes every row
+/// assert!(c.wake_probs(&u, Wake::Block(1e6)).iter().all(|&q| q < 1e-12));
+/// assert!(c.wake_probs(&u, Wake::Block(-1e6)).iter().all(|&q| q > 1.0 - 1e-9));
+/// // top-k with k larger than the filled rows wakes every row
+/// assert!(c.wake_probs(&u, Wake::Topk(1_000_000)).iter().all(|&q| q == 1.0));
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub enum Wake {
     /// The k filled rows with the largest match (ties split uniformly).
@@ -168,6 +222,14 @@ pub enum Wake {
 
 /// The block threshold SDMRADIUS's `density_threshold_blocks` would set on a store of T random patterns, from
 /// its expectations: filled rows M (1 - e^-lam), mean row load L = lam / (1 - e^-lam), lam = p T.
+///
+/// ```
+/// use kanerva::track::block_theta;
+/// // more stored patterns load each row more, so the threshold rises
+/// let light = block_theta(256, 100_000, 103, 100, 1.0, 0.01);
+/// let heavy = block_theta(256, 100_000, 103, 10_000, 1.0, 0.01);
+/// assert!(light > 0.0 && heavy > light);
+/// ```
 pub fn block_theta(n: usize, m: usize, r: usize, t: usize, eps_row: f64, eps_pat: f64) -> f64 {
     let p = ball(n, r);
     let lam = p * t as f64;
@@ -182,6 +244,15 @@ pub fn block_theta(n: usize, m: usize, r: usize, t: usize, eps_row: f64, eps_pat
 
 /// The block threshold with the rows' co-member overlap kappa^2 in the row load (TRACK-G): two patterns that share
 /// a row overlap by kappa^2 on average, so L = (lam + lam^2 kappa^2) / (1 - e^-lam).
+///
+/// ```
+/// use kanerva::track::{block_theta, block_theta_geo};
+/// // with kappa 0 the row load is TRACK-C's, so the two thresholds agree
+/// let a = block_theta(256, 100_000, 103, 1_000, 1.0, 0.01);
+/// let b = block_theta_geo(256, 100_000, 103, 1_000, 1.0, 0.01, 0.0);
+/// assert_eq!(a, b);
+/// assert!(block_theta_geo(256, 100_000, 103, 1_000, 1.0, 0.01, 0.5) > a);
+/// ```
 pub fn block_theta_geo(n: usize, m: usize, r: usize, t: usize, eps_row: f64, eps_pat: f64, kappa: f64) -> f64 {
     let p = ball(n, r);
     let lam = p * t as f64;
@@ -195,11 +266,23 @@ pub fn block_theta_geo(n: usize, m: usize, r: usize, t: usize, eps_row: f64, eps
 }
 
 /// Predictor TRACK-C for the content reads.
+///
+/// ```
+/// use kanerva::track::Content;
+/// let c = Content::new(256, 20_000, 104);
+/// assert!((c.pm - c.p * 20_000.0).abs() < 1e-9);
+/// assert!(c.geo.is_none());
+/// ```
 pub struct Content {
+    /// The word-size in bits.
     pub n: usize,
+    /// The number of hard-locations M.
     pub m: usize,
+    /// The activation-radius r.
     pub r: usize,
+    /// p: the fraction of hard-locations one address activates (`theory::ball`).
     pub p: f64,
+    /// p M: the expected number of rows a write reaches.
     pub pm: f64,
     /// TRACK-G (post-hoc): model where each row's address sits relative to the state, so a row's members share
     /// its alignment with the state. None = TRACK-C (members drawn uniformly, no addresses).
@@ -210,10 +293,18 @@ pub struct Content {
 /// the state (P(m) = C(n, m) / 2^n). A stored pattern whose half-overlap with the state is u lies within r of an
 /// address in shell m with probability h(u, m) (a hypergeometric sum), independently of the other patterns given
 /// the address; so a shell's row match is a compound Poisson sum with rate sum_u hist(u) h(u, m).
+///
+/// ```
+/// use kanerva::track::Geo;
+/// let g = Geo::new(64, 2_000, 25, 0.01);
+/// assert!(!g.shells.is_empty());
+/// assert_eq!(g.h.len(), 65);
+/// assert!(g.kappa > 0.0 && g.kappa < 1.0);
+/// ```
 pub struct Geo {
     /// (m, P(m)) for every shell holding at least 0.01 expected rows.
     pub shells: Vec<(usize, f64)>,
-    /// h[u + n/2][s] for the shells in order.
+    /// h\[u + n/2\]\[s\] for the shells in order.
     pub h: Vec<Vec<f64>>,
     /// kappa = E[1 - 2 d / n | d <= r]: a written pattern's mean agreement with the row's address; two patterns
     /// sharing a row overlap by kappa^2 on average.
@@ -221,6 +312,15 @@ pub struct Geo {
 }
 
 impl Geo {
+    /// TRACK-G's tables for word-size `n`, `m` hard-locations and activation-radius `r`, keeping the shells with at least `min_rows` expected rows.
+    ///
+    /// ```
+    /// use kanerva::track::Geo;
+    /// // a wider activation-radius takes in farther addresses, so the mean agreement kappa falls
+    /// let near = Geo::new(64, 2_000, 20, 0.01);
+    /// let far = Geo::new(64, 2_000, 28, 0.01);
+    /// assert!(near.kappa > far.kappa);
+    /// ```
     pub fn new(n: usize, m: usize, r: usize, min_rows: f64) -> Geo {
         let mut lf = vec![0.0f64; n + 1];
         for k in 1..=n {
@@ -229,7 +329,6 @@ impl Geo {
         let lc = |a: usize, b: usize| if b > a { f64::NEG_INFINITY } else { lf[a] - lf[b] - lf[a - b] };
         let l2 = n as f64 * 2f64.ln();
         let shells: Vec<(usize, f64)> = (0..=n).map(|mm| (mm, (lc(n, mm) - l2).exp())).filter(|x| x.1 * m as f64 >= min_rows).collect();
-        let half = n / 2;
         let h: Vec<Vec<f64>> = (0..=n)
             .map(|i| {
                 let ka = i; // |A| = n/2 + u = i
@@ -247,9 +346,6 @@ impl Geo {
                         let hi = ka.min(mm).min(kmax);
                         let mut acc = 0.0;
                         for k in lo..=hi {
-                            if hi < lo {
-                                break;
-                            }
                             acc += (lc(ka, k) + lc(kb, mm - k) - lc(n, mm)).exp();
                         }
                         acc
@@ -257,7 +353,6 @@ impl Geo {
                     .collect()
             })
             .collect();
-        let _ = half;
         let (mut num, mut den) = (0.0, 0.0);
         for d in 0..=r {
             let w = (lc(n, d) - l2).exp();
@@ -360,47 +455,85 @@ impl Geo {
 }
 
 /// What one sampled read did.
+///
+/// ```
+/// use kanerva::{Rng, track::{Content, Wake}};
+/// let c = Content::new(256, 20_000, 104);
+/// let s = c.sample(Wake::Topk(c.k()), 10, 0.1, false, 20, false, &mut Rng::new(1));
+/// assert!(s.rounds >= 1 && s.overlap <= 1.0 && s.nearest <= 256);
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Sample {
     /// Final overlap with the target (pattern 0).
     pub overlap: f64,
     /// Bits between the read-address and the final state.
     pub travel: usize,
+    /// The number of reads the sampled read made.
     pub rounds: usize,
     /// Distance from the final state to the nearest stored pattern.
     pub nearest: usize,
-    /// First read: effective number of patterns (sum k)^2 / sum k^2, and the largest count's share.
+    /// First read: the effective number of patterns (sum k)^2 / sum k^2 over the woken rows' patterns.
     pub neff1: f64,
+    /// The largest pattern count's share of the first read's total.
     pub share1: f64,
     /// First read: distinct patterns with a woken row.
     pub distinct1: usize,
 }
 
 impl Content {
+    /// TRACK-C for word-size `n`, `m` hard-locations and activation-radius `r`.
+    ///
+    /// ```
+    /// use kanerva::{track::Content, theory::ball};
+    /// let c = Content::new(256, 20_000, 104);
+    /// assert_eq!(c.p, ball(256, 104));
+    /// assert_eq!((c.n, c.m, c.r), (256, 20_000, 104));
+    /// ```
     pub fn new(n: usize, m: usize, r: usize) -> Content {
         let p = ball(n, r);
         Content { n, m, r, p, pm: p * m as f64, geo: None }
     }
 
     /// TRACK-G (post-hoc): the same predictor with the rows' addresses placed relative to the state.
+    ///
+    /// ```
+    /// use kanerva::track::Content;
+    /// let g = Content::with_geometry(64, 2_000, 25);
+    /// assert!(g.geo.is_some());
+    /// ```
     pub fn with_geometry(n: usize, m: usize, r: usize) -> Content {
         let p = ball(n, r);
         Content { n, m, r, p, pm: p * m as f64, geo: Some(Geo::new(n, m, r, 0.01)) }
     }
 
     /// The top-k read's k (SDMREFUSE's choice: the expected wake count p M).
+    ///
+    /// ```
+    /// use kanerva::track::Content;
+    /// let c = Content::new(256, 20_000, 104);
+    /// assert_eq!(c.k(), c.pm.round() as usize);
+    /// ```
     pub fn k(&self) -> usize {
         self.pm.round().max(1.0) as usize
     }
 
     /// q_mu = P[a row holding pattern mu is woken] for every pattern, from the patterns' half-unit overlaps u.
+    ///
+    /// ```
+    /// use kanerva::track::{Content, Wake};
+    /// let c = Content::new(256, 20_000, 104);
+    /// // at threshold 0 a row wakes when its match is positive, so a pattern that agrees more with the
+    /// // state is likelier to wake its rows
+    /// let q = c.wake_probs(&[-20, 0, 20], Wake::Block(0.0));
+    /// assert!(q[0] < q[1] && q[1] < q[2]);
+    /// ```
     pub fn wake_probs(&self, u: &[i64], wake: Wake) -> Vec<f64> {
         if let Some(g) = &self.geo {
             return g.wake_probs(self, u, wake);
         }
         let t = u.len().max(1);
         let lam = self.p * t as f64;
-        let mut hist = vec![0.0f64; (self.n + 1) as usize];
+        let mut hist = vec![0.0f64; self.n + 1];
         let off = (self.n / 2) as i64;
         for &x in u {
             hist[(x + off) as usize] += 1.0;
@@ -465,11 +598,20 @@ impl Content {
     }
 
     /// One sampled read: T random patterns, target pattern 0; the read-address is pattern 0 with each bit flipped with
-    /// probability `dmg`, or (`never`) a fresh random pattern. Up to `iters` reads.
-    pub fn sample(&self, wake: Wake, t: usize, dmg: f64, never: bool, iters: usize, persist: bool, r: &mut Rng) -> Sample {
+    /// probability `address_noise`, or (`never`) a fresh random pattern. Up to `iters` reads.
+    ///
+    /// ```
+    /// use kanerva::{Rng, track::{Content, Wake}};
+    /// let c = Content::new(256, 20_000, 104);
+    /// let mut r = Rng::new(3);
+    /// // a lightly loaded memory and 10% address-noise: the predicted read lands on the target
+    /// let s = c.sample(Wake::Topk(c.k()), 10, 0.1, false, 20, false, &mut r);
+    /// assert!(s.overlap > 0.95);
+    /// ```
+    pub fn sample(&self, wake: Wake, t: usize, address_noise: f64, never: bool, iters: usize, persist: bool, r: &mut Rng) -> Sample {
         let n = self.n;
-        let w = (n + 63) / 64;
-        let tail = if n % 64 == 0 { u64::MAX } else { (1u64 << (n % 64)) - 1 };
+        let w = n.div_ceil(64);
+        let tail = if n.is_multiple_of(64) { u64::MAX } else { (1u64 << (n % 64)) - 1 };
         let t = t.max(1);
         let mut pats: Vec<u64> = Vec::with_capacity(t * w);
         for _ in 0..t {
@@ -487,13 +629,13 @@ impl Content {
         } else {
             let mut z = pats[..w].to_vec();
             for j in 0..n {
-                if r.unit() < dmg {
+                if r.unit() < address_noise {
                     z[j / 64] ^= 1 << (j % 64);
                 }
             }
             z
         };
-        let cue = z.clone();
+        let read_address = z.clone();
         let half = (n / 2) as i64;
         let mut kprev = vec![0u32; t];
         let mut qprev = vec![0.0f64; t];
@@ -557,34 +699,65 @@ impl Content {
         }
         let d = hd(&pats[..w], &z);
         out.overlap = 1.0 - 2.0 * d as f64 / n as f64;
-        out.travel = hd(&cue, &z);
+        out.travel = hd(&read_address, &z);
         out.nearest = (0..t).map(|mu| hd(&pats[mu * w..(mu + 1) * w], &z)).min().unwrap_or(n);
         out
     }
 
     /// Fraction of `samples` sampled reads of a noisy read-address ending at overlap >= 0.95.
-    pub fn p_converge(&self, wake: Wake, dmg: f64, t: usize, samples: usize, persist: bool, seed: u64) -> f64 {
+    ///
+    /// ```
+    /// use kanerva::track::{Content, Wake};
+    /// let c = Content::new(256, 20_000, 104);
+    /// let p = c.p_converge(Wake::Topk(c.k()), 0.1, 10, 20, true, 1);
+    /// assert!((0.0..=1.0).contains(&p) && p >= 0.9);
+    /// ```
+    pub fn p_converge(&self, wake: Wake, address_noise: f64, t: usize, samples: usize, persist: bool, seed: u64) -> f64 {
         let mut r = Rng::new(seed ^ 0xC0_17E7_0000_0001);
-        let ok = (0..samples).filter(|_| self.sample(wake, t, dmg, false, 20, persist, &mut r).overlap >= 0.95).count();
+        let ok = (0..samples).filter(|_| self.sample(wake, t, address_noise, false, 20, persist, &mut r).overlap >= 0.95).count();
         ok as f64 / samples.max(1) as f64
     }
 }
 
 /// Reference TRACK-R: a random membership graph with the store's per-pattern write count and no addresses.
+///
+/// ```
+/// use kanerva::{Rng, track::Member};
+/// let mut rng = Rng::new(5);
+/// let pats: Vec<u64> = (0..10).map(|_| rng.next_u64()).collect(); // ten 64-bit patterns
+/// let g = Member::random(64, 2_000, 25, pats, &mut rng);
+/// assert_eq!(g.t, 10);
+/// assert!(g.rows() > 0);
+/// ```
 pub struct Member {
+    /// The word-size in bits.
     pub n: usize,
+    /// The number of stored patterns.
     pub t: usize,
     w: usize,
+    /// The stored patterns, packed, `n.div_ceil(64)` words each, pattern 0 first.
     pub pats: Vec<u64>,
-    /// Nonempty rows: their members are members[start[i]..start[i+1]].
+    /// Nonempty rows: their members are `members[start[i]..start[i+1]]`.
     start: Vec<u32>,
     members: Vec<u32>,
 }
 
 impl Member {
     /// Every pattern goes to Poisson(p M) rows drawn uniformly from M (a repeat inside one pattern is dropped).
+    ///
+    /// ```
+    /// use kanerva::{Rng, track::Member};
+    /// let mut rng = Rng::new(5);
+    /// let pats: Vec<u64> = (0..10).map(|_| rng.next_u64()).collect();
+    /// let g = Member::random(64, 2_000, 25, pats, &mut rng);
+    /// // every nonempty row holds at least one pattern, and no pattern twice
+    /// for i in 0..g.rows() {
+    ///     let row = g.row(i);
+    ///     assert!(!row.is_empty() && row.windows(2).all(|w| w[0] < w[1]));
+    /// }
+    /// ```
     pub fn random(n: usize, m: usize, r: usize, pats: Vec<u64>, rng: &mut Rng) -> Member {
-        let w = (n + 63) / 64;
+        let w = n.div_ceil(64);
         let t = pats.len() / w;
         let pm = ball(n, r) * m as f64;
         let mut edges: Vec<(u32, u32)> = Vec::new();
@@ -599,8 +772,17 @@ impl Member {
     }
 
     /// From explicit (row, pattern) pairs, e.g. the store's own membership.
+    ///
+    /// ```
+    /// use kanerva::track::Member;
+    /// // two 64-bit patterns; row 5 holds both, row 9 holds pattern 0
+    /// let g = Member::from_edges(64, vec![1, 2], vec![(9, 0), (5, 1), (5, 0)]);
+    /// assert_eq!(g.rows(), 2);
+    /// assert_eq!(g.row(0), &[0, 1]);
+    /// assert_eq!(g.row(1), &[0]);
+    /// ```
     pub fn from_edges(n: usize, pats: Vec<u64>, mut edges: Vec<(u32, u32)>) -> Member {
-        let w = (n + 63) / 64;
+        let w = n.div_ceil(64);
         let t = pats.len() / w;
         edges.sort_unstable();
         let mut start = vec![0u32];
@@ -619,15 +801,35 @@ impl Member {
         Member { n, t, w, pats, start, members }
     }
 
+    /// The number of nonempty rows.
+    ///
+    /// ```
+    /// let g = kanerva::track::Member::from_edges(64, vec![1, 2], vec![(3, 0), (7, 1)]);
+    /// assert_eq!(g.rows(), 2);
+    /// ```
     pub fn rows(&self) -> usize {
         self.start.len() - 1
     }
 
+    /// The patterns that nonempty row `i` holds.
+    ///
+    /// ```
+    /// let g = kanerva::track::Member::from_edges(64, vec![1, 2], vec![(3, 1), (3, 0)]);
+    /// assert_eq!(g.row(0), &[0, 1]);
+    /// ```
     pub fn row(&self, i: usize) -> &[u32] {
         &self.members[self.start[i] as usize..self.start[i + 1] as usize]
     }
 
     /// Mean |C_i|^2 / n over (up to `cap` evenly spaced) nonempty rows: the block threshold's row load.
+    ///
+    /// ```
+    /// use kanerva::track::Member;
+    /// // one row holding one pattern: |C|^2 / n = n / n = 1
+    /// assert_eq!(Member::from_edges(64, vec![7], vec![(0, 0)]).mean_load(10), 1.0);
+    /// // one row holding the same pattern twice over: |2x|^2 / n = 4
+    /// assert_eq!(Member::from_edges(64, vec![7, 7], vec![(0, 0), (0, 1)]).mean_load(10), 4.0);
+    /// ```
     pub fn mean_load(&self, cap: usize) -> f64 {
         let nr = self.rows();
         if nr == 0 {
@@ -652,9 +854,17 @@ impl Member {
 
     /// The content read on the graph: returns (final state, rounds, first-read effective number, first-read top
     /// share). Top-k ties go to the lower row index, as in the store.
-    pub fn read(&self, cue: &[u64], wake: Wake, iters: usize) -> (Vec<u64>, usize, f64, f64) {
+    ///
+    /// ```
+    /// use kanerva::track::{Member, Wake};
+    /// // one row holding pattern 0: reading from pattern 0 returns it after one read
+    /// let g = Member::from_edges(64, vec![0xF0F0, 0x1234], vec![(0, 0)]);
+    /// let (z, rounds, neff1, share1) = g.read(&[0xF0F0], Wake::Topk(1), 20);
+    /// assert_eq!((z, rounds, neff1, share1), (vec![0xF0F0], 1, 1.0, 1.0));
+    /// ```
+    pub fn read(&self, read_address: &[u64], wake: Wake, iters: usize) -> (Vec<u64>, usize, f64, f64) {
         let (n, w) = (self.n, self.w);
-        let mut z = cue.to_vec();
+        let mut z = read_address.to_vec();
         let half = (n / 2) as i64;
         let nr = self.rows();
         let mut dots: Vec<(u32, i64)> = Vec::with_capacity(nr);
@@ -721,23 +931,53 @@ impl Member {
 }
 
 /// One round of a traced read: which rows woke and what their vote looked like.
+///
+/// ```
+/// use kanerva::{Rng, Store, bits::random_pattern, theory::{ball, radius_for}, track::trace_topk};
+/// let mut rng = Rng::new(2);
+/// let r = radius_for(64, 0.05);
+/// let mut st = Store::new(64, 2_000, r, 1);
+/// let ps: Vec<Vec<i8>> = (0..5).map(|_| random_pattern(64, &mut rng)).collect();
+/// st.write_many(&ps);
+/// let rows: Vec<u32> = (0..st.m).filter(|&i| st.filled[i]).map(|i| i as u32).collect();
+/// let k = (ball(64, r) * 2_000.0).round() as usize;
+/// let (_, rounds) = trace_topk(&st, &rows, &ps[0], 20, k);
+/// assert!(rounds.iter().all(|rd| rd.woken.len() == k));
+/// assert_eq!(rounds.last().unwrap().flips, 0);
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Round {
-    /// The state this round read (packed) and the rows it woke.
+    /// The state this round read, packed.
     pub state: Vec<u64>,
+    /// The rows woken this round.
     pub woken: Vec<u32>,
     /// Bits the read flipped.
     pub flips: usize,
-    /// Self-vote: A = v . z / n (the vote's mean component along the state per bit) and its spread
-    /// sigma = sqrt(sum_j (v_j - A z_j)^2 / n); the Gaussian estimate of the flips is n Phi(-A / sigma).
+    /// Self-vote A = v . z / n: the vote's mean component along the state, per bit. With `sigma` the Gaussian
+    /// estimate of the flips is n Phi(-A / sigma) (`flips_estimate`).
     pub a: f64,
+    /// The vote's spread sigma = sqrt(sum_j (v_j - A z_j)^2 / n).
     pub sigma: f64,
 }
 
 /// The store's top-k read (same answer as `Store::read_pulls_topk`) recording every round's woken rows.
-pub fn trace_topk(st: &Store, rows: &[u32], cue: &[i8], iters: usize, k: usize) -> (Vec<i8>, Vec<Round>) {
+///
+/// ```
+/// use kanerva::{Rng, Store, bits::{random_pattern, add_address_noise}, theory::{ball, radius_for}, track::trace_topk};
+/// let mut rng = Rng::new(2);
+/// let r = radius_for(64, 0.05);
+/// let mut st = Store::new(64, 2_000, r, 1);
+/// let ps: Vec<Vec<i8>> = (0..5).map(|_| random_pattern(64, &mut rng)).collect();
+/// st.write_many(&ps);
+/// let rows: Vec<u32> = (0..st.m).filter(|&i| st.filled[i]).map(|i| i as u32).collect();
+/// let k = (ball(64, r) * 2_000.0).round() as usize;
+/// let read_address = add_address_noise(&ps[1], 0.1, &mut rng);
+/// let (z, _) = trace_topk(&st, &rows, &read_address, 20, k);
+/// assert_eq!(z, st.read_pulls_topk(&read_address, 20, k).z);
+/// ```
+pub fn trace_topk(st: &Store, rows: &[u32], read_address: &[i8], iters: usize, k: usize) -> (Vec<i8>, Vec<Round>) {
     let n = st.n;
-    let mut z = cue.to_vec();
+    let mut z = read_address.to_vec();
     let mut dots: Vec<i32> = rows.iter().map(|&i| st.row(i as usize).iter().zip(&z).map(|(&c, &v)| c as i32 * v as i32).sum()).collect();
     let mut sum = vec![0i32; n];
     let mut out = Vec::new();
@@ -778,22 +1018,52 @@ pub fn trace_topk(st: &Store, rows: &[u32], cue: &[i8], iters: usize, k: usize) 
 }
 
 /// Which stored patterns a set of rows holds.
+///
+/// ```
+/// use kanerva::{Rng, Store, bits::{pack, pack_all, random_pattern}, theory::radius_for, track::census};
+/// let mut rng = Rng::new(2);
+/// let mut st = Store::new(64, 2_000, radius_for(64, 0.05), 1);
+/// let ps: Vec<Vec<i8>> = (0..5).map(|_| random_pattern(64, &mut rng)).collect();
+/// st.write_many(&ps);
+/// let rows: Vec<u32> = st.awake(&ps[3]);
+/// let c = census(&st, &pack_all(&ps), &rows, &pack(&ps[3]));
+/// assert_eq!(c.rows, rows.len());
+/// assert_eq!((c.top, c.top_dist), (3, 0));
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Census {
-    /// Woken rows, and how many of them hold no stored pattern.
+    /// The number of rows counted.
     pub rows: usize,
+    /// How many of the counted rows hold no stored pattern.
     pub empty: usize,
-    /// Distinct patterns held, total (pattern, row) pairs K, effective number (sum k)^2 / sum k^2.
+    /// The number of distinct stored patterns the rows hold.
     pub distinct: usize,
+    /// The total (pattern, row) pairs K.
     pub total: usize,
+    /// The effective number of patterns (sum k)^2 / sum k^2.
     pub neff: f64,
-    /// The pattern with the most rows: its index, its share k_max / K, and its distance to the state.
+    /// The index of the pattern held by the most rows (ties to the lower index).
     pub top: usize,
+    /// The top pattern's share k_max / K.
     pub share: f64,
+    /// The top pattern's distance to the state.
     pub top_dist: usize,
 }
 
-/// Count, for each row in `rows`, the stored patterns (packed) within the store's activation radius of its address.
+/// Count, for each row in `rows`, the stored patterns (packed) within the store's activation-radius of its address.
+///
+/// ```
+/// use kanerva::{Rng, Store, bits::{pack, pack_all, random_pattern}, theory::radius_for, track::census};
+/// let mut rng = Rng::new(2);
+/// let mut st = Store::new(64, 2_000, radius_for(64, 0.05), 1);
+/// let ps: Vec<Vec<i8>> = (0..5).map(|_| random_pattern(64, &mut rng)).collect();
+/// st.write_many(&ps);
+/// // the access circle of pattern 3 holds pattern 3 in every row
+/// let rows: Vec<u32> = st.awake(&ps[3]);
+/// let c = census(&st, &pack_all(&ps), &rows, &pack(&ps[3]));
+/// assert_eq!(c.empty, 0);
+/// assert!(c.distinct >= 1 && c.total >= rows.len() && c.neff >= 1.0);
+/// ```
 pub fn census(st: &Store, pats: &[Vec<u64>], rows: &[u32], z: &[u64]) -> Census {
     let mut cnt: Vec<(usize, u32)> = Vec::new();
     let mut idx = std::collections::HashMap::new();
@@ -827,6 +1097,12 @@ pub fn census(st: &Store, pats: &[Vec<u64>], rows: &[u32], z: &[u64]) -> Census 
 }
 
 /// Gaussian estimate of the bits one read flips: n Phi(-A / sigma).
+///
+/// ```
+/// use kanerva::track::flips_estimate;
+/// assert_eq!(flips_estimate(256, 1.0, 0.0), 0.0); // no spread, no flips
+/// assert!((flips_estimate(256, 0.0, 1.0) - 128.0).abs() < 1e-6); // no pull: half the bits
+/// ```
 pub fn flips_estimate(n: usize, a: f64, sigma: f64) -> f64 {
     if sigma <= 0.0 {
         return 0.0;
@@ -836,12 +1112,25 @@ pub fn flips_estimate(n: usize, a: f64, sigma: f64) -> f64 {
 
 /// Probe tail fractions for signals oriented so that SMALLER is more confident: u(x) = (1 + #{probes <= x}) /
 /// (P + 1), from the first probe set; the combined scores are then calibrated on a second probe set.
+///
+/// ```
+/// use kanerva::track::TailCal;
+/// let tc = TailCal::new(&[vec![1.0, 30.0], vec![2.0, 10.0], vec![3.0, 20.0]]);
+/// assert_eq!(tc.sorted, vec![vec![1.0, 2.0, 3.0], vec![10.0, 20.0, 30.0]]);
+/// ```
+#[derive(Clone, Debug, PartialEq)]
 pub struct TailCal {
     /// Sorted probe values per signal.
     pub sorted: Vec<Vec<f64>>,
 }
 
 impl TailCal {
+    /// Sort each signal's values over the probes; `probes[i]` holds probe i's signals.
+    ///
+    /// ```
+    /// let tc = kanerva::track::TailCal::new(&[vec![3.0], vec![1.0], vec![2.0]]);
+    /// assert_eq!(tc.sorted, vec![vec![1.0, 2.0, 3.0]]);
+    /// ```
     pub fn new(probes: &[Vec<f64>]) -> TailCal {
         let ns = probes.first().map(|p| p.len()).unwrap_or(0);
         let sorted = (0..ns)
@@ -855,6 +1144,12 @@ impl TailCal {
     }
 
     /// u_s(x) for every signal.
+    ///
+    /// ```
+    /// let tc = kanerva::track::TailCal::new(&[vec![1.0], vec![2.0], vec![3.0]]);
+    /// assert_eq!(tc.fractions(&[0.0]), vec![0.25]);
+    /// assert_eq!(tc.fractions(&[2.0]), vec![0.75]);
+    /// ```
     pub fn fractions(&self, x: &[f64]) -> Vec<f64> {
         self.sorted
             .iter()
@@ -867,11 +1162,22 @@ impl TailCal {
     }
 
     /// Product score (log): sum_s ln u_s(x). Smaller is more confident.
+    ///
+    /// ```
+    /// let tc = kanerva::track::TailCal::new(&[vec![1.0, 1.0], vec![2.0, 2.0], vec![3.0, 3.0]]);
+    /// let p = tc.product(&[0.0, 2.0]);
+    /// assert!((p - (0.25f64.ln() + 0.75f64.ln())).abs() < 1e-12);
+    /// ```
     pub fn product(&self, x: &[f64]) -> f64 {
         self.fractions(x).iter().map(|u| u.ln()).sum()
     }
 
     /// Min score: min_s u_s(x). Smaller is more confident.
+    ///
+    /// ```
+    /// let tc = kanerva::track::TailCal::new(&[vec![1.0, 1.0], vec![2.0, 2.0], vec![3.0, 3.0]]);
+    /// assert_eq!(tc.min(&[0.0, 2.0]), 0.25);
+    /// ```
     pub fn min(&self, x: &[f64]) -> f64 {
         self.fractions(x).into_iter().fold(f64::INFINITY, f64::min)
     }
@@ -879,6 +1185,12 @@ impl TailCal {
 
 /// The acceptance cut from calibration scores: the value at rank floor(alpha P) of the ascending scores; an
 /// answer is accepted iff its score is strictly below it, so at most alpha of the calibration probes pass.
+///
+/// ```
+/// let scores: Vec<f64> = (0..100).map(|i| i as f64).collect();
+/// // the cut at alpha 0.05 is the 6th smallest score; scores strictly below it (5 of 100) pass
+/// assert_eq!(kanerva::track::calibrate(&scores, 0.05), 5.0);
+/// ```
 pub fn calibrate(scores: &[f64], alpha: f64) -> f64 {
     let mut v = scores.to_vec();
     v.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -887,6 +1199,10 @@ pub fn calibrate(scores: &[f64], alpha: f64) -> f64 {
 }
 
 /// Pack a ±1 pattern (re-export for the instrument).
+///
+/// ```
+/// assert_eq!(kanerva::track::packed(&[1, -1, 1]), vec![0b101]);
+/// ```
 pub fn packed(z: &[i8]) -> Vec<u64> {
     pack(z)
 }
@@ -937,9 +1253,9 @@ mod tests {
         st.write_many(&ps);
         let rows: Vec<u32> = (0..st.m).filter(|&i| st.filled[i]).map(|i| i as u32).collect();
         let k = (ball(256, 105) * 20_000.0).round() as usize;
-        let cue = add_address_noise(&ps[2], 0.2, &mut rr);
-        let (z, rounds) = trace_topk(&st, &rows, &cue, 20, k);
-        assert_eq!(z, st.read_pulls_topk(&cue, 20, k).z);
+        let read_address = add_address_noise(&ps[2], 0.2, &mut rr);
+        let (z, rounds) = trace_topk(&st, &rows, &read_address, 20, k);
+        assert_eq!(z, st.read_pulls_topk(&read_address, 20, k).z);
         assert!(overlap(&z, &ps[2]) > 0.99);
         let c = census(&st, &crate::bits::pack_all(&ps), &rounds.last().unwrap().woken, &pack(&z));
         assert_eq!(c.top, 2);

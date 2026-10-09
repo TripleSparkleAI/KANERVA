@@ -1,0 +1,28 @@
+== sdm
+read :s from read-address :cat with 20% address-noise via addresses (2 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat
+read :s from read-address :cat with 20% address-noise via pulls (2 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat
+read :s from read-address :note with 15% address-noise via addresses (2 iterated reads, 44 of 2000 hard locations activated): :note +1.00  :cat +0.09  :dog -0.08  -> :note
+  text: "meet at nine"
+read :s from read-address :owl with 40% address-noise via addresses (2 iterated reads, 55 of 2000 hard locations activated): :note +0.62  :cat +0.46  :owl +0.45  -> nothing clear (closest :note at +0.62)
+read :s from pure noise via addresses (3 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat
+read :s from read-address :zebra with 0% address-noise via addresses (3 iterated reads, 55 of 2000 hard locations activated): :note +0.62  :cat +0.46  :owl +0.45  -> nothing clear (closest :note at +0.62)
+== softsdm
+read :hard from read-address :cat with 20% address-noise (pass, softness 0, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+read :hard from read-address :note with 10% address-noise (pass, softness 0, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :note +1.00  :owl +0.03  :cat +0.02  -> :note
+  text: "meet at the harbour at nine"
+read :soft from read-address :cat with 20% address-noise (pass, softness 0.25, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+read :soft from read-address :cat with 20% address-noise (settle, softness 0.25, 3 rounds, best overlap by round +0.77 +0.77 +0.77): :owl +0.77  :note +0.26  :dog +0.25  -> nothing clear (closest :owl at +0.77)
+read :hard from pure noise (pass, softness 0, 3 rounds, best overlap by round +0.72 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+read :hard from read-address :zebra with 0% address-noise (pass, softness 0, 3 rounds, best overlap by round +0.72 +1.00 +1.00): :owl +1.00  :note +0.03  :dog +0.02  -> :owl
+attend :soft from read-address :cat with 20% address-noise (softness 0.25, fitted softmax inverse temperature 2.2 on cosine):
+  mean-field read of this machine          :cat +1.00  :note +0.02  -> :cat
+  kernel read, infinitely many locations   :cat +1.00  :note +0.02  -> :cat
+  softmax attention                        :cat +1.00  :note +0.02  -> :cat
+== sdmscale
+read :k from read-address :cat with 20% address-noise via addresses (20 iterated reads, 230 of 20000 hard locations activated, 221 holding bit-counters): -> nothing clear (overlap with :cat -0.02)
+read :k from read-address :cat with 20% address-noise via pulls (2 iterated reads, 206 of 20000 hard locations activated, 206 holding bit-counters): -> :cat
+read :k from read-address :owl with 0% address-noise via addresses (20 iterated reads, 224 of 20000 hard locations activated, 213 holding bit-counters): -> nothing clear (overlap with :owl +0.00)
+== refusal
+refusal for 3000 patterns of 256 bits: accept an answer only if it lies within 91 bits of the cue (a never-stored cue is refused with probability 0.9935); the nearest-neighbour ceiling then recalls 10%: 1.000 of 1.000, 20%: 1.000 of 1.000, 30%: 0.976 of 0.998, 40%: 0.081 of 0.375
+== contenttrack
+contenttrack top-k read, 20000 hard locations of 256 bits, activation-radius 106, 300 patterns, 30% address-noise: TRACK-C predicts recall 1.000 (fresh) 0.980 (persist) over 50 sampled reads

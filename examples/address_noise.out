@@ -1,0 +1,7 @@
+100 words in 10000 hard-locations of 256 bits
+address-noise   recalled (overlap >= 0.95)   mean overlap
+       10%       20 of 20                      1.000
+       20%       19 of 20                      0.961
+       30%        8 of 20                      0.447
+       40%        0 of 20                      0.026
+predicted critical-distance at 100 words: 91 bits (36% address-noise)

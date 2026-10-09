@@ -1,0 +1,9 @@
+2000 hard-locations of 256 bits, activation-radius 112
+predicted capacity at 10% address-noise: 93 words
+stored   recalled from 10% address-noise (overlap >= 0.95, 40 probes)
+    25   40 of 40
+    50   34 of 40
+   100    9 of 40
+   150    0 of 40
+   200    0 of 40
+   300    0 of 40

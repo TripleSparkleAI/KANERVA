@@ -1,0 +1,14 @@
+n 256, M 10,000, the SNR activation-radius, the content read; 200 never-stored read-addresses; 60 stored words per noise level
+kept = accepted and read back at overlap >= 0.95
+
+50 words stored (activation-radius 107, k 51):
+  never-stored refused: travel rule 198 of 200, calibrated 196 of 200
+  10% address-noise kept: travel rule 60 of 60, calibrated 60 of 60
+  20% address-noise kept: travel rule 60 of 60, calibrated 60 of 60
+  30% address-noise kept: travel rule 60 of 60, calibrated 60 of 60
+
+2000 words stored (activation-radius 107, k 51):
+  never-stored refused: travel rule 125 of 200, calibrated 197 of 200
+  10% address-noise kept: travel rule 36 of 60, calibrated 36 of 60
+  20% address-noise kept: travel rule 31 of 60, calibrated 31 of 60
+  30% address-noise kept: travel rule 10 of 60, calibrated 5 of 60

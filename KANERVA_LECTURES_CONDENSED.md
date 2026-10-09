@@ -1,7 +1,7 @@
 # KANERVA_LECTURES_CONDENSED - what an SDM is, in Kanerva's own words from his recorded lectures
 
 A condensed version of Pentti Kanerva's recorded lectures on sparse distributed memory, made for THE EXPLAINER at
-the top of the site's SDM EXPLORE page (`sites/settle-site/src/sdmexplore/Explainer.jsx`) and for the simpler intros on
+the top of the site's SDM EXPLORE page (`SETTLE/settle-site/src/sdmexplore/Explainer.jsx`) and for the simpler intros on
 the other SDM pages. It keeps his framing and his terms. Every quotation is a line of YouTube's auto-caption,
 verbatim and unpunctuated, as the captioner heard him, with the lecture it comes from and the time it was said. A
 quotation is never paraphrased inside quotation marks; the paraphrase around it is ours.
@@ -22,7 +22,8 @@ lists every talk, its channel, date, length and provenance). Each lecture is cit
 | hH65_yWSpFc | a rehearsal of a DARPA talk on computing in superposition (published as "Cerebellum as a neural RAM") | robustness from high dimension |
 
 Kanerva's written statements of the same things, with page numbers, are in `KANERVA_TERMS.md` beside this file
-(the 1988 book, the 1993 chapter, the 1989 Stanford report). The site's terms follow that file.
+(the 1993 chapter, the 1989 Stanford report, the 2009 and 2010 papers, and the 1988 book through a source
+that quotes it with its page). The site's terms follow that file.
 
 ## The condensed version, in five steps
 
@@ -152,11 +153,11 @@ climbing fibre, which he reads as the write line paired with that cell's read li
 
 ## How the site uses this
 
-- THE EXPLAINER (`sites/settle-site/src/sdmexplore/Explainer.jsx`) carries steps 1 to 5 above, each with a picture
+- THE EXPLAINER (`SETTLE/settle-site/src/sdmexplore/Explainer.jsx`) carries steps 1 to 5 above, each with a picture
   computed from the page's own 32-bit, 64-location machine, and quotes the caption lines marked in its `QUOTES` table.
-  `sites/settle-site/tests/sdmexplain.test.mjs` checks that every quoted line is in this file verbatim with its lecture
+  `SETTLE/settle-site/tests/sdmexplain.test.mjs` checks that every quoted line is in this file verbatim with its lecture
   id and time.
-- THE SDM INTRO (`sites/settle-site/src/sdmexplore/SdmIntro.jsx`) is the one-paragraph version shared by the memory,
+- THE SDM INTRO (`SETTLE/settle-site/src/sdmexplore/SdmIntro.jsx`) is the one-paragraph version shared by the memory,
   SDMCHAT, SDMPOEM, WEIRD LITTLE SDM GUY, WHAT part two, SDMJEV and results pages; the KANERVA page links to the explainer
   from its HOW AN SDM WORKS section.
 

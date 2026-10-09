@@ -1,0 +1,8 @@
+# Two statements that build no memory: they compute from Kanerva's theory.
+model :paper do
+end
+
+run :paper do
+  refusal word-size: 256, load: 3000, level: 0.01          # the travel rule's threshold and the nearest-neighbour ceiling
+  contenttrack word-size: 64, hard-locations: 300, load: 20, address-noise: 0.2, samples: 10  # TRACK-C's predicted recall
+end

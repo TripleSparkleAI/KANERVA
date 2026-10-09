@@ -1,0 +1,5 @@
+softness   recall overlap (20% address-noise)   attention inverse temperature
+       0      1.000                              2.56
+    0.25      1.000                              2.17
+     0.5      0.875                              1.56
+       1      0.453                              0.71

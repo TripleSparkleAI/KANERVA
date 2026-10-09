@@ -1,0 +1,1 @@
+read :s from read-address :cat with 20% address-noise via addresses (2 iterated reads, 48 of 2000 hard locations activated): :cat +1.00  :owl -0.09  :note +0.09  -> :cat

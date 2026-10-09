@@ -1,0 +1,2 @@
+refusal for 3000 patterns of 256 bits: accept an answer only if it lies within 91 bits of the cue (a never-stored cue is refused with probability 0.9935); the nearest-neighbour ceiling then recalls 10%: 1.000 of 1.000, 20%: 1.000 of 1.000, 30%: 0.976 of 0.998, 40%: 0.081 of 0.375
+contenttrack top-k read, 300 hard locations of 64 bits, activation-radius 25, 20 patterns, 20% address-noise: TRACK-C predicts recall 1.000 (fresh) 0.900 (persist) over 10 sampled reads

@@ -1,0 +1,10 @@
+read :hard from read-address :cat with 20% address-noise (pass, softness 0, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+read :hard from read-address :note with 10% address-noise (pass, softness 0, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :note +1.00  :owl +0.03  :cat +0.02  -> :note
+  text: "meet at the harbour at nine"
+read :soft from read-address :cat with 20% address-noise (pass, softness 0.25, 3 rounds, best overlap by round +1.00 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+read :soft from read-address :cat with 20% address-noise (settle, softness 0.25, 3 rounds, best overlap by round +0.77 +0.77 +0.77): :owl +0.77  :note +0.26  :dog +0.25  -> nothing clear (closest :owl at +0.77)
+read :hard from pure noise (pass, softness 0, 3 rounds, best overlap by round +0.72 +1.00 +1.00): :cat +1.00  :note +0.02  :dog -0.07  -> :cat
+attend :soft from read-address :cat with 20% address-noise (softness 0.25, fitted softmax inverse temperature 2.2 on cosine):
+  mean-field read of this machine          :cat +1.00  :note +0.02  -> :cat
+  kernel read, infinitely many locations   :cat +1.00  :note +0.02  -> :cat
+  softmax attention                        :cat +1.00  :note +0.02  -> :cat

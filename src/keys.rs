@@ -13,13 +13,30 @@ use crate::codes::{bits_text, bytes_bits, code, seed_of};
 use crate::rng::Rng;
 
 /// A turn of the cube: first flip signs by `mask`, then move bit k to position `perm[k]`.
+///
+/// ```
+/// use kanerva::keys::key_turn;
+/// let turn = key_turn("blue heron", 64);
+/// let x: Vec<f64> = (0..64).map(|k| if k % 3 == 0 { 1.0 } else { -1.0 }).collect();
+/// assert_eq!(turn.undo(&turn.apply(&x)), x);
+/// ```
 pub struct KeyTurn {
+    /// The sign flip for each payload bit, +1 or -1.
     pub mask: Vec<f64>,
+    /// Where each payload bit goes: bit k moves to position `perm[k]`.
     pub perm: Vec<usize>,
 }
 
 impl KeyTurn {
     /// Payload order to stored order.
+    ///
+    /// ```
+    /// use kanerva::{keys::key_turn, codes::{code, overlap}};
+    /// let turn = key_turn("k", 256);
+    /// let (a, b) = (code("a", 256), code("b", 256));
+    /// // a turn is a rotation of the cube: it keeps every overlap, so every Hamming distance
+    /// assert_eq!(overlap(&turn.apply(&a), &turn.apply(&b)), overlap(&a, &b));
+    /// ```
     pub fn apply(&self, x: &[f64]) -> Vec<f64> {
         let mut out = vec![0.0; x.len()];
         for k in 0..x.len() {
@@ -28,6 +45,13 @@ impl KeyTurn {
         out
     }
     /// Stored order back to payload order.
+    ///
+    /// ```
+    /// use kanerva::{keys::key_turn, codes::code};
+    /// let turn = key_turn("k", 256);
+    /// let a = code("a", 256);
+    /// assert_eq!(turn.undo(&turn.apply(&a)), a);
+    /// ```
     pub fn undo(&self, s: &[f64]) -> Vec<f64> {
         (0..s.len()).map(|k| s[self.perm[k]] * self.mask[k]).collect()
     }
@@ -35,6 +59,15 @@ impl KeyTurn {
 
 /// The turn a key names. The mask is `code("mask:<key>")`; the permutation is a Fisher-Yates shuffle driven
 /// by `seed_of("turn:<key>")`.
+///
+/// ```
+/// use kanerva::keys::key_turn;
+/// let t = key_turn("k", 128);
+/// let mut perm = t.perm.clone();
+/// perm.sort();
+/// assert_eq!(perm, (0..128).collect::<Vec<_>>()); // a permutation of the positions
+/// assert_eq!(t.mask, key_turn("k", 128).mask); // the same key always names the same turn
+/// ```
 pub fn key_turn(key: &str, size: usize) -> KeyTurn {
     let mask = code(&format!("mask:{}", key), size);
     let mut r = Rng::new(seed_of(&format!("turn:{}", key)));
@@ -47,11 +80,26 @@ pub fn key_turn(key: &str, size: usize) -> KeyTurn {
 }
 
 /// The largest text a keyed pattern of `size` bits holds (one length byte, then the text, at most 255 bytes).
+///
+/// ```
+/// use kanerva::keys::keyed_capacity;
+/// assert_eq!(keyed_capacity(256), 31); // 32 bytes, one of them the length byte
+/// assert_eq!(keyed_capacity(8), 0);
+/// assert_eq!(keyed_capacity(4096), 255); // the length byte caps it
+/// ```
 pub fn keyed_capacity(size: usize) -> usize {
     (size / 8).saturating_sub(1).min(255)
 }
 
 /// `[length byte][text bits][+1 padding]` in payload order, before the turn.
+///
+/// ```
+/// use kanerva::keys::keyed_payload;
+/// let p = keyed_payload("hi", 256);
+/// // the length byte 2 = 0000_0010, then 16 text bits, then +1 padding
+/// assert_eq!(&p[..8], &[-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0]);
+/// assert!(p[24..].iter().all(|&v| v == 1.0));
+/// ```
 pub fn keyed_payload(t: &str, size: usize) -> Vec<f64> {
     let mut p = vec![1.0; size];
     let mut bytes = vec![t.len() as u8];
@@ -63,11 +111,26 @@ pub fn keyed_payload(t: &str, size: usize) -> Vec<f64> {
 }
 
 /// The pattern a keyed save stores: the payload, turned by the key.
+///
+/// ```
+/// use kanerva::keys::{keyed_pattern, keyed_read};
+/// let stored = keyed_pattern("blue heron", "under the mat", 256);
+/// assert_eq!(keyed_read("blue heron", &stored).as_deref(), Some("under the mat"));
+/// assert_eq!(keyed_read("red heron", &stored), None);
+/// ```
 pub fn keyed_pattern(key: &str, t: &str, size: usize) -> Vec<f64> {
     key_turn(key, size).apply(&keyed_payload(t, size))
 }
 
 /// What the key-holder reads from: the turned all-+1 payload (right on every padding bit).
+///
+/// ```
+/// use kanerva::{keys::{keyed_pattern, keyed_read_address}, codes::overlap};
+/// let stored = keyed_pattern("blue heron", "under the mat", 256);
+/// let read_address = keyed_read_address("blue heron", 256);
+/// // it agrees with the stored pattern on every padding bit, so it lies close to it
+/// assert!(overlap(&read_address, &stored) > 0.5);
+/// ```
 pub fn keyed_read_address(key: &str, size: usize) -> Vec<f64> {
     key_turn(key, size).apply(&vec![1.0; size])
 }
@@ -77,6 +140,15 @@ pub fn keyed_read_address(key: &str, size: usize) -> Vec<f64> {
 /// bits must exist and at least 85% of them must read +1. A wrong key turns a state into noise, so its padding
 /// reads +1 about half the time and fails. A note that fills the memory has no padding to check, so it is
 /// refused: the key cannot tell it from noise.
+///
+/// ```
+/// use kanerva::keys::{keyed_pattern, keyed_read};
+/// let stored = keyed_pattern("k", "hi", 256);
+/// let mirror: Vec<f64> = stored.iter().map(|v| -v).collect();
+/// assert_eq!(keyed_read("k", &mirror).as_deref(), Some("hi")); // a mirror image still reads
+/// // a note that leaves no padding cannot be told from noise, so it is refused
+/// assert_eq!(keyed_read("k", &keyed_pattern("k", "abc", 32)), None);
+/// ```
 pub fn keyed_read(key: &str, s: &[f64]) -> Option<String> {
     let size = s.len();
     let b = key_turn(key, size).undo(s);

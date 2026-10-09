@@ -9,7 +9,7 @@
 //!   last-round votes' agreement with the answer, and the woken rows' mean match. Same answers as the
 //!   `store::Store` reads (the content reads keep each row's match current by adding only the flipped bits).
 //! - `Track`: predictor TRACK for the ADDRESS read. It keeps the target and every other stored pattern, and at
-//!   each read draws the number of hard locations the state shares with each one from its current distance
+//!   each read draws the number of hard-locations the state shares with each one from its current distance
 //!   (Poisson with mean M I(d)); the vote is then exactly sum_mu k_mu x_mu. FRESH redraws the counts every
 //!   read; PERSIST keeps the fraction of the old wake set still inside the new one and draws the arrivals.
 
@@ -19,11 +19,23 @@ use crate::store::Store;
 use crate::theory::{ball, binom_pmf, intersection};
 
 /// P[a random pattern lies within h of a random read-address] = P[Bin(n, 1/2) <= h].
+///
+/// ```
+/// use kanerva::refuse::half_cdf;
+/// assert!((half_cdf(4, 0) - 1.0 / 16.0).abs() < 1e-12); // only the address itself
+/// assert!((half_cdf(4, 4) - 1.0).abs() < 1e-12); // every 4-bit pattern
+/// ```
 pub fn half_cdf(n: usize, h: usize) -> f64 {
     ball(n, h)
 }
 
 /// P[no one of T random stored patterns lies within h of a random read-address].
+///
+/// ```
+/// use kanerva::refuse::refusal_prob;
+/// assert!((refusal_prob(4, 1, 0) - 15.0 / 16.0).abs() < 1e-12);
+/// assert!((refusal_prob(4, 2, 0) - (15.0f64 / 16.0).powi(2)).abs() < 1e-12);
+/// ```
 pub fn refusal_prob(n: usize, t: usize, h: usize) -> f64 {
     let f = half_cdf(n, h).min(1.0);
     (t as f64 * (1.0 - f).ln_1p_safe()).exp()
@@ -44,6 +56,14 @@ impl Ln1p for f64 {
 }
 
 /// The travel rule's threshold: the largest h with P[some one of T random patterns within h] <= level.
+///
+/// ```
+/// use kanerva::refuse::{refusal_prob, travel_threshold};
+/// let h = travel_threshold(256, 300, 0.01);
+/// assert_eq!(h, 95);
+/// assert!(1.0 - refusal_prob(256, 300, h) <= 0.01);
+/// assert!(1.0 - refusal_prob(256, 300, h + 1) > 0.01); // the largest such h
+/// ```
 pub fn travel_threshold(n: usize, t: usize, level: f64) -> usize {
     let mut best = 0;
     for h in 0..=n {
@@ -57,12 +77,19 @@ pub fn travel_threshold(n: usize, t: usize, level: f64) -> usize {
 }
 
 /// The nearest-neighbour oracle, exactly: T stored random patterns, a stored read-address made by flipping each bit
-/// of its pattern with probability `dmg`. The oracle answers the nearest stored pattern (ties broken
+/// of its pattern with probability `address_noise`. The oracle answers the nearest stored pattern (ties broken
 /// uniformly) and refuses when that distance exceeds h. Returns (recall, recall with no refusal, refusal):
 /// recall = P[target nearest and within h], refusal = P[a random read-address has no stored pattern within h].
-pub fn oracle_point(n: usize, dmg: f64, t: usize, h: usize) -> (f64, f64, f64) {
+///
+/// ```
+/// use kanerva::refuse::{oracle_point, refusal_prob};
+/// let (recall, no_refusal, refusal) = oracle_point(256, 0.1, 300, 95);
+/// assert!(recall > 0.99 && recall <= no_refusal);
+/// assert_eq!(refusal, refusal_prob(256, 300, 95));
+/// ```
+pub fn oracle_point(n: usize, address_noise: f64, t: usize, h: usize) -> (f64, f64, f64) {
     let half = binom_pmf(n, 0.5);
-    let b = binom_pmf(n, dmg);
+    let b = binom_pmf(n, address_noise);
     let mut cdf = 0.0;
     let (mut rec, mut all) = (0.0, 0.0);
     for d in 0..=n {
@@ -86,10 +113,18 @@ pub fn oracle_point(n: usize, dmg: f64, t: usize, h: usize) -> (f64, f64, f64) {
 }
 
 /// What one read did, with the signals a refusal rule may use.
+///
+/// ```
+/// let d = kanerva::refuse::Diag::default();
+/// assert!(d.z.is_empty() && d.rounds == 0 && !d.fixed);
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Diag {
+    /// The final state of the read.
     pub z: Vec<i8>,
+    /// The number of reads the iterated read made.
     pub rounds: usize,
+    /// True when the last read left the state unchanged (a fixed point).
     pub fixed: bool,
     /// cos(first-round vote, final state): how much of the first vote already pointed at the answer.
     pub cos1: f64,
@@ -98,6 +133,7 @@ pub struct Diag {
     /// Content reads: mean C_i . z over the woken rows / n, first and last round. Address read: filled rows
     /// awake on the first and last round.
     pub dot1: f64,
+    /// The last-round counterpart of `dot1`.
     pub dotf: f64,
 }
 
@@ -112,20 +148,55 @@ fn cosine(s: &[i32], z: &[i8]) -> f64 {
 }
 
 /// A store with its filled rows listed once, and diagnostic reads.
+///
+/// ```
+/// let mut rng = kanerva::Rng::new(5);
+/// let words: Vec<Vec<i8>> = (0..20).map(|_| kanerva::bits::random_pattern(256, &mut rng)).collect();
+/// let mut st = kanerva::store::Store::new(256, 2_000, 112, 1);
+/// st.write_many(&words);
+/// let read_address = kanerva::bits::add_address_noise(&words[0], 0.2, &mut rng);
+/// let fast = kanerva::refuse::Fast::new(&st);
+/// assert_eq!(fast.address(&read_address, 20).z, st.read_addresses(&read_address, 20).z);
+/// ```
 pub struct Fast<'a> {
+    /// The store this view reads.
     pub st: &'a Store,
+    /// The indices of the store's filled rows, in index order.
     pub rows: Vec<u32>,
 }
 
 impl<'a> Fast<'a> {
+    /// List the store's filled rows once, for the diagnostic reads.
+    ///
+    /// ```
+    /// let mut rng = kanerva::Rng::new(5);
+    /// let words: Vec<Vec<i8>> = (0..20).map(|_| kanerva::bits::random_pattern(256, &mut rng)).collect();
+    /// let mut st = kanerva::store::Store::new(256, 2_000, 112, 1);
+    /// st.write_many(&words);
+    /// let read_address = kanerva::bits::add_address_noise(&words[0], 0.2, &mut rng);
+    /// let fast = kanerva::refuse::Fast::new(&st);
+    /// assert_eq!(fast.rows.len(), st.filled.iter().filter(|&&f| f).count());
+    /// ```
     pub fn new(st: &'a Store) -> Fast<'a> {
         let rows = (0..st.m).filter(|&i| st.filled[i]).map(|i| i as u32).collect();
         Fast { st, rows }
     }
 
     /// The top-k pulls read; same answer as `Store::read_pulls_topk`.
-    pub fn topk(&self, cue: &[i8], iters: usize, k: usize) -> Diag {
-        self.pulls(cue, iters, |rows, dots| {
+    ///
+    /// ```
+    /// let mut rng = kanerva::Rng::new(5);
+    /// let words: Vec<Vec<i8>> = (0..20).map(|_| kanerva::bits::random_pattern(256, &mut rng)).collect();
+    /// let mut st = kanerva::store::Store::new(256, 2_000, 112, 1);
+    /// st.write_many(&words);
+    /// let read_address = kanerva::bits::add_address_noise(&words[0], 0.2, &mut rng);
+    /// let fast = kanerva::refuse::Fast::new(&st);
+    /// let d = fast.topk(&read_address, 20, 40);
+    /// assert_eq!(d.z, st.read_pulls_topk(&read_address, 20, 40).z);
+    /// assert!(d.cosf > 0.0);
+    /// ```
+    pub fn topk(&self, read_address: &[i8], iters: usize, k: usize) -> Diag {
+        self.pulls(read_address, iters, |rows, dots| {
             let mut v: Vec<(u32, i32)> = rows.iter().copied().zip(dots.iter().copied()).collect();
             let k = k.min(v.len());
             if k == 0 {
@@ -137,15 +208,25 @@ impl<'a> Fast<'a> {
     }
 
     /// The thresholded pulls read; same answer as `Store::read_pulls_at`.
-    pub fn thresh(&self, cue: &[i8], iters: usize, theta: f64) -> Diag {
-        self.pulls(cue, iters, |rows, dots| rows.iter().zip(dots).filter(|x| *x.1 as f64 > theta).map(|x| *x.0).collect())
+    ///
+    /// ```
+    /// let mut rng = kanerva::Rng::new(5);
+    /// let words: Vec<Vec<i8>> = (0..20).map(|_| kanerva::bits::random_pattern(256, &mut rng)).collect();
+    /// let mut st = kanerva::store::Store::new(256, 2_000, 112, 1);
+    /// st.write_many(&words);
+    /// let read_address = kanerva::bits::add_address_noise(&words[0], 0.2, &mut rng);
+    /// let fast = kanerva::refuse::Fast::new(&st);
+    /// assert_eq!(fast.thresh(&read_address, 20, 100.0).z, st.read_pulls_at(&read_address, 20, 100.0).z);
+    /// ```
+    pub fn thresh(&self, read_address: &[i8], iters: usize, theta: f64) -> Diag {
+        self.pulls(read_address, iters, |rows, dots| rows.iter().zip(dots).filter(|x| *x.1 as f64 > theta).map(|x| *x.0).collect())
     }
 
     /// Shared loop: the dots C_i . z of every filled row are kept current by adding only the flipped bits'
     /// terms after each read.
-    fn pulls<F: Fn(&[u32], &[i32]) -> Vec<u32>>(&self, cue: &[i8], iters: usize, pick: F) -> Diag {
+    fn pulls<F: Fn(&[u32], &[i32]) -> Vec<u32>>(&self, read_address: &[i8], iters: usize, pick: F) -> Diag {
         let n = self.st.n;
-        let mut z = cue.to_vec();
+        let mut z = read_address.to_vec();
         let mut dots: Vec<i32> = self
             .rows
             .iter()
@@ -198,10 +279,22 @@ impl<'a> Fast<'a> {
     }
 
     /// Kanerva's address read; same answer as `Store::read_addresses`.
-    pub fn address(&self, cue: &[i8], iters: usize) -> Diag {
+    ///
+    /// ```
+    /// let mut rng = kanerva::Rng::new(5);
+    /// let words: Vec<Vec<i8>> = (0..20).map(|_| kanerva::bits::random_pattern(256, &mut rng)).collect();
+    /// let mut st = kanerva::store::Store::new(256, 2_000, 112, 1);
+    /// st.write_many(&words);
+    /// let read_address = kanerva::bits::add_address_noise(&words[0], 0.2, &mut rng);
+    /// let fast = kanerva::refuse::Fast::new(&st);
+    /// let d = fast.address(&read_address, 20);
+    /// assert_eq!(d.z, words[0]);
+    /// assert!(d.fixed);
+    /// ```
+    pub fn address(&self, read_address: &[i8], iters: usize) -> Diag {
         let st = self.st;
         let n = st.n;
-        let mut z = cue.to_vec();
+        let mut z = read_address.to_vec();
         let mut sum = vec![0i32; n];
         let mut out = Diag::default();
         let mut s1: Vec<i32> = Vec::new();
@@ -240,6 +333,14 @@ impl<'a> Fast<'a> {
 }
 
 /// A Poisson draw (Knuth below mean 30, a rounded normal above).
+///
+/// ```
+/// use kanerva::{Rng, refuse::poisson};
+/// let mut r = Rng::new(3);
+/// assert_eq!(poisson(0.0, &mut r), 0);
+/// let mean = (0..4_000).map(|_| poisson(3.0, &mut r) as f64).sum::<f64>() / 4_000.0;
+/// assert!((mean - 3.0).abs() < 0.15);
+/// ```
 pub fn poisson(lam: f64, r: &mut Rng) -> u32 {
     if lam <= 0.0 {
         return 0;
@@ -288,19 +389,40 @@ fn binomial(k: u32, q: f64, r: &mut Rng) -> u32 {
     (0..k).filter(|_| r.unit() < q).count() as u32
 }
 
-/// Predictor TRACK's tables: lam[d] = M I(d), the expected number of hard locations a state d bits from a
-/// pattern shares with that pattern's write set; keep[d] = I(d) / p, the fraction of a wake set that is
+/// Predictor TRACK's tables: lam\[d\] = M I(d), the expected number of hard-locations a state d bits from a
+/// pattern shares with that pattern's write set; keep\[d\] = I(d) / p, the fraction of a wake set that is
 /// still awake after the state moves d bits (PERSIST's retention, ignoring where the pattern sits).
+///
+/// ```
+/// use kanerva::{refuse::Track, theory::ball};
+/// let tr = Track::new(256, 2_000, 112);
+/// assert_eq!(tr.lam.len(), 257);
+/// assert!((tr.lam[0] - 2_000.0 * ball(256, 112)).abs() < 1e-6); // at distance 0 all of the activated set is shared
+/// assert!((tr.keep[0] - 1.0).abs() < 1e-9);
+/// ```
 pub struct Track {
+    /// The word-size in bits.
     pub n: usize,
+    /// The number of hard-locations M.
     pub m: usize,
+    /// The activation-radius r.
     pub r: usize,
+    /// `lam[d]` = M I(d) for d = 0..=n: the expected shared hard-locations at distance d.
     pub lam: Vec<f64>,
+    /// `elam[d]` = exp(-lam\[d\]), kept for the Poisson draws.
     pub elam: Vec<f64>,
+    /// `keep[d]` = min(I(d) / p, 1) for d = 0..=n: the share of the activated set that stays activated after a move of d bits.
     pub keep: Vec<f64>,
 }
 
 impl Track {
+    /// Build the tables for word-size `n`, `m` hard-locations and activation-radius `r`.
+    ///
+    /// ```
+    /// let tr = kanerva::refuse::Track::new(256, 2_000, 112);
+    /// assert!(tr.lam[10] < tr.lam[0]); // farther points share fewer hard-locations
+    /// assert!(tr.elam.iter().zip(&tr.lam).all(|(e, l)| (e - (-l).exp()).abs() < 1e-12));
+    /// ```
     pub fn new(n: usize, m: usize, r: usize) -> Track {
         let p = ball(n, r);
         let inter: Vec<f64> = (0..=n).map(|d| intersection(n, r, d)).collect();
@@ -311,13 +433,21 @@ impl Track {
     }
 
     /// One sampled read: a random target and T - 1 random other patterns, the read-address flips each target bit
-    /// with probability dmg; up to `iters` reads; returns the final overlap with the target and the rounds.
-    /// At each read the vote on bit j is sum_mu k_mu x_mu[j] (exactly what the store's summed awake rows
+    /// with probability address_noise; up to `iters` reads; returns the final overlap with the target and the rounds.
+    /// At each read the vote on bit j is sum_mu k_mu x_mu\[j\] (exactly what the store's summed awake rows
     /// hold), k_mu drawn from the state's current distance to pattern mu.
-    pub fn sample(&self, dmg: f64, t: usize, iters: usize, persist: bool, r: &mut Rng) -> (f64, usize) {
+    ///
+    /// ```
+    /// use kanerva::{Rng, refuse::Track};
+    /// let tr = Track::new(256, 2_000, 112);
+    /// let (overlap, rounds) = tr.sample(0.1, 10, 20, false, &mut Rng::new(1));
+    /// assert!(overlap >= -1.0 && overlap <= 1.0);
+    /// assert!(rounds >= 1 && rounds <= 20);
+    /// ```
+    pub fn sample(&self, address_noise: f64, t: usize, iters: usize, persist: bool, r: &mut Rng) -> (f64, usize) {
         let n = self.n;
-        let w = (n + 63) / 64;
-        let tail = if n % 64 == 0 { u64::MAX } else { (1u64 << (n % 64)) - 1 };
+        let w = n.div_ceil(64);
+        let tail = if n.is_multiple_of(64) { u64::MAX } else { (1u64 << (n % 64)) - 1 };
         let t = t.max(1);
         let mut pats: Vec<u64> = Vec::with_capacity(t * w);
         for _ in 0..t {
@@ -326,10 +456,10 @@ impl Track {
                 pats.push(if k + 1 == w { x & tail } else { x });
             }
         }
-        // read-address: flip each bit of pattern 0 with probability dmg
+        // read-address: flip each bit of pattern 0 with probability address_noise
         let mut z: Vec<u64> = pats[..w].to_vec();
         for j in 0..n {
-            if r.unit() < dmg {
+            if r.unit() < address_noise {
                 z[j / 64] ^= 1 << (j % 64);
             }
         }
@@ -385,9 +515,16 @@ impl Track {
     }
 
     /// Fraction of `samples` sampled reads ending at overlap >= 0.95 (common random numbers across T).
-    pub fn p_converge(&self, dmg: f64, t: usize, samples: usize, persist: bool, seed: u64) -> f64 {
+    ///
+    /// ```
+    /// let tr = kanerva::refuse::Track::new(256, 2_000, 112);
+    /// let light = tr.p_converge(0.1, 10, 50, true, 1);
+    /// let heavy = tr.p_converge(0.1, 2_000, 50, true, 1);
+    /// assert!(light > heavy);
+    /// ```
+    pub fn p_converge(&self, address_noise: f64, t: usize, samples: usize, persist: bool, seed: u64) -> f64 {
         let mut r = Rng::new(seed ^ 0x7EAC_0000_0001);
-        let ok = (0..samples).filter(|_| self.sample(dmg, t, 20, persist, &mut r).0 >= 0.95).count();
+        let ok = (0..samples).filter(|_| self.sample(address_noise, t, 20, persist, &mut r).0 >= 0.95).count();
         ok as f64 / samples.max(1) as f64
     }
 }
@@ -426,22 +563,22 @@ mod tests {
         let f = Fast::new(&st);
         let k = (ball(256, 105) * 20_000.0).round() as usize;
         for q in 0..6 {
-            let cue = if q % 3 == 2 { random_pattern(256, &mut rr) } else { add_address_noise(&ps[q], 0.2, &mut rr) };
-            assert_eq!(f.topk(&cue, 20, k).z, st.read_pulls_topk(&cue, 20, k).z);
-            assert_eq!(f.thresh(&cue, 20, 60.0).z, st.read_pulls_at(&cue, 20, 60.0).z);
-            assert_eq!(f.address(&cue, 20).z, st.read_addresses(&cue, 20).z);
+            let read_address = if q % 3 == 2 { random_pattern(256, &mut rr) } else { add_address_noise(&ps[q], 0.2, &mut rr) };
+            assert_eq!(f.topk(&read_address, 20, k).z, st.read_pulls_topk(&read_address, 20, k).z);
+            assert_eq!(f.thresh(&read_address, 20, 60.0).z, st.read_pulls_at(&read_address, 20, 60.0).z);
+            assert_eq!(f.address(&read_address, 20).z, st.read_addresses(&read_address, 20).z);
         }
         // a clean recall travels about the address-noise; the answer is the pattern
-        let cue = add_address_noise(&ps[0], 0.2, &mut rr);
-        let d = f.topk(&cue, 20, k);
+        let read_address = add_address_noise(&ps[0], 0.2, &mut rr);
+        let d = f.topk(&read_address, 20, k);
         assert!(overlap(&d.z, &ps[0]) > 0.99);
-        assert!(hd(&pack(&cue), &pack(&d.z)) < 80);
+        assert!(hd(&pack(&read_address), &pack(&d.z)) < 80);
     }
 
     #[test]
     fn track_recalls_a_lone_pattern_and_fails_with_nothing_shared() {
         assert!(Track::new(256, 100_000, 106).p_converge(0.1, 1, 200, false, 1) > 0.99);
-        // negative control: a activation radius so small that a 40% read-address shares no hard location
+        // negative control: an activation-radius so small that a 40% read-address shares no hard-location
         assert!(Track::new(256, 1000, 90).p_converge(0.4, 1, 200, false, 1) < 0.01);
     }
 }

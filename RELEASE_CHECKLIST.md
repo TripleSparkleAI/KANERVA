@@ -5,12 +5,11 @@ invented to fill a gap.
 
 ## Decisions owed
 
-1. **The licence.** `LICENSE.md` is a placeholder that grants nothing. Choose a licence, replace `LICENSE.md`
-   with its text, and in `Cargo.toml` replace `license-file = "LICENSE.md"` with `license = "<SPDX id>"`. The
-   README's licence box and the CHANGELOG line "Licence: not yet chosen" change with it.
-2. **Public or private.** The repository `github.com/triplesparkle/KANERVA` exists and reads PRIVATE (checked
-   with `gh repo view` on 2026-10-05). Making it public is the owner's act; the site's one switch for it is
-   `kanerva: { repo: 'KANERVA', visibility: ... }` in `SETTLE/settle-site/src/repo.js`.
+1. **The licence.** DECIDED: MIT (the navigator, 2026-10-09). `LICENSE` holds the text and `Cargo.toml` says
+   `license = "MIT"`.
+2. **Public or private.** DECIDED: public at launch (the navigator, 2026-10-09). `SETTLE/launch.sh`'s public step
+   makes `github.com/triplesparkle/KANERVA` public with the other seven SETTLE repositories, just before the
+   deploying push; the site's `src/repo.js` already says public.
 3. **crates.io or git only.** `publish = false` keeps `cargo publish` from running. Publishing needs a licence,
    an owner account, and a check that the name `kanerva` is free on crates.io (not checked here).
 4. **Authors.** `Cargo.toml` names no authors. Add them if the owner wants names on the crate.

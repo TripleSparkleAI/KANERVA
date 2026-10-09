@@ -9,9 +9,9 @@ readme = "README.md"
 repository = "https://github.com/triplesparkle/KANERVA"
 keywords = ["sparse-distributed-memory", "kanerva", "associative-memory", "hyperdimensional"]
 categories = ["algorithms", "science"]
-# no licence is chosen yet: LICENSE.md says so, and grants nothing until the owner chooses one (RELEASE_CHECKLIST.md)
-license-file = "LICENSE.md"
-# not on crates.io: the repository is private and the licence is undecided
+# MIT (the navigator, 2026-10-09); the text is LICENSE
+license = "MIT"
+# not on crates.io: the owner decides (RELEASE_CHECKLIST.md)
 publish = false
 
 [lib]

@@ -52,12 +52,10 @@ The crate uses Kanerva's own words, joined by a hyphen where his word is two: re
 hard-locations, activation-radius, activation-probability, word-size, bit-counters, iterated-reads,
 critical-distance. Each one, with Kanerva's sentence and page, is in [KANERVA_TERMS.md](KANERVA_TERMS.md).
 
-> **The repository is `github.com/triplesparkle/KANERVA`, private for now.** A clone or a git dependency
-> needs access until it is made public. The SETTLE interpreter (`github.com/triplesparkle/SETTLE`) depends
-> on it by its git URL.
+> **The repository is `github.com/triplesparkle/KANERVA`, and it is public.** Anyone can clone it or name it as a
+> git dependency. The SETTLE interpreter (`github.com/triplesparkle/SETTLE`) depends on it by its git URL.
 >
-> **Licence: to be chosen.** No licence has been granted yet, so no rights are given by this folder.
-> This is flagged for the owner to decide before the repository is opened to anyone.
+> **Licence: MIT.** The text is in `LICENSE`.
 
 Version 0.1.0. Rust 1.87 or newer. Every public item carries an example that runs as a test, and every example's
 printout is recorded and checked (`ls src examples` for the current set).
@@ -82,8 +80,7 @@ Or by hand, under `[dependencies]` in your `Cargo.toml`:
 kanerva = { git = "https://github.com/triplesparkle/KANERVA" }
 ```
 
-All three need access while the repository is private. A crate in a folder beside a clone can name it by
-path instead: `kanerva = { path = "../KANERVA" }`.
+A crate in a folder beside a clone can name it by path instead: `kanerva = { path = "../KANERVA" }`.
 
 ## Quickstart
 
@@ -362,7 +359,7 @@ SETTLE campaign measured with, public so SETTLE and any measurement can call the
 | `calibrated` | the calibrated refusal (SDMTRACK's calibrated minimum) over the address or the content read | none yet; `contenttrack` measures the same rule |
 | `diagnose` | the bit balance of a set of words; the race between a target and its rivals for shared hard-locations | none |
 | `erase` | the exact undo of a write, and the leave-one-out read | none |
-| `hetero` | a data-word of its own width written at an address, with int32 bit-counters and a radius or nearest-k wake | none; #/learn-sdm's MNIST run uses it through the WebAssembly build |
+| `hetero` | a data-word of its own width written at an address, with int32 bit-counters and a radius or nearest-k wake | none; #/sdm's MNIST run uses it through the WebAssembly build |
 | `words` | the one word list: every statement, its keywords, their kinds and defaults | all five sdm-family statements (SETTLE mounts it) |
 | `rails` | the Rust builder, the word list spoken in Rust | none; `examples/rails.rs` prints SETTLE's lines with it |
 | `lang` | the one parser and runner for `.kanerva` files and SETTLE's sdm-family lines | the five sdm-family statements, parsed for SETTLE (`src/plug.rs`) |

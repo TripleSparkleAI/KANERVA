@@ -52,8 +52,8 @@ The crate uses Kanerva's own words, joined by a hyphen where his word is two: re
 hard-locations, activation-radius, activation-probability, word-size, bit-counters, iterated-reads,
 critical-distance. Each one, with Kanerva's sentence and page, is in [KANERVA_TERMS.md](KANERVA_TERMS.md).
 
-> **The repository is `github.com/triplesparkle/KANERVA`, and it is public.** Anyone can clone it or name it as a
-> git dependency. The SETTLE interpreter (`github.com/triplesparkle/SETTLE`) depends on it by its git URL.
+> **The repository is `github.com/TripleSparkleAI/KANERVA`, and it is public.** Anyone can clone it or name it as a
+> git dependency. The SETTLE interpreter (`github.com/TripleSparkleAI/SETTLE`) depends on it by its git URL.
 >
 > **Licence: MIT.** The text is in `LICENSE`.
 
@@ -65,19 +65,19 @@ printout is recorded and checked (`ls src examples` for the current set).
 As a git dependency:
 
 ```bash
-cargo add kanerva --git https://github.com/triplesparkle/KANERVA
+cargo add kanerva --git https://github.com/TripleSparkleAI/KANERVA
 ```
 
 From a clone:
 
 ```bash
-git clone https://github.com/triplesparkle/KANERVA && cd KANERVA && cargo test --release
+git clone https://github.com/TripleSparkleAI/KANERVA && cd KANERVA && cargo test --release
 ```
 
 Or by hand, under `[dependencies]` in your `Cargo.toml`:
 
 ```toml
-kanerva = { git = "https://github.com/triplesparkle/KANERVA" }
+kanerva = { git = "https://github.com/TripleSparkleAI/KANERVA" }
 ```
 
 A crate in a folder beside a clone can name it by path instead: `kanerva = { path = "../KANERVA" }`.

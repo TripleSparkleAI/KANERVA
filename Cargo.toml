@@ -6,7 +6,7 @@ edition = "2024"
 rust-version = "1.87"
 description = "KANERVA: a toolbox for Kanerva's sparse distributed memory (hard-locations, reads, soft cut-off, keys, capacity theory, refusal, content-read predictors). Zero dependencies."
 readme = "README.md"
-repository = "https://github.com/triplesparkle/KANERVA"
+repository = "https://github.com/TripleSparkleAI/KANERVA"
 keywords = ["sparse-distributed-memory", "kanerva", "associative-memory", "hyperdimensional"]
 categories = ["algorithms", "science"]
 # MIT (the navigator, 2026-10-09); the text is LICENSE

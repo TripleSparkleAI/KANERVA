@@ -8,7 +8,7 @@ invented to fill a gap.
 1. **The licence.** DECIDED: MIT (the navigator, 2026-10-09). `LICENSE` holds the text and `Cargo.toml` says
    `license = "MIT"`.
 2. **Public or private.** DECIDED: public at launch (the navigator, 2026-10-09). `SETTLE/launch.sh`'s public step
-   makes `github.com/triplesparkle/KANERVA` public with the other seven SETTLE repositories, just before the
+   makes `github.com/TripleSparkleAI/KANERVA` public with the other seven SETTLE repositories, just before the
    deploying push; the site's `src/repo.js` already says public.
 3. **crates.io or git only.** `publish = false` keeps `cargo publish` from running. Publishing needs a licence,
    an owner account, and a check that the name `kanerva` is free on crates.io (not checked here).

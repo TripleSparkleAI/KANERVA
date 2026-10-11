@@ -632,7 +632,7 @@ read the note 20 of 20 times at 2 to 20 public memories, the wrong key 0 of 20. 
 from noise lands in the note's valley 14.2% of the time but reads 50.2% of its text bits, which is
 chance.
 
-## How it relates to `wikis/WIKI_SDR/canonical/sdm.py`
+## How it relates to the Python SDM
 
 `wikis/WIKI_SDR/canonical/sdm.py` (with `sdm_trainable.py`) is a separate SDM written in Python with
 numpy. KANERVA does not import it, and it does not import KANERVA. They cite the same theory (Kanerva 1988,
